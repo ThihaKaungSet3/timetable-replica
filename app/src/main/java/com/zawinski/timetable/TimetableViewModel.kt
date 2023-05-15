@@ -1,23 +1,28 @@
 package com.zawinski.timetable
 
-import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zawinski.timetable.model.ItemData
 import com.zawinski.timetable.model.ListItem
-import com.zawinski.timetable.model.createDummyListItems
+import com.zawinski.timetable.model.ScheduleUiHeader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class TimetableViewModel : ViewModel() {
     private val _items = MutableStateFlow<List<ListItem>>(emptyList())
     val items: StateFlow<List<ListItem>> = _items
+    private val _headerItems = MutableStateFlow<List<ScheduleUiHeader>>(emptyList())
+    val headerItems: StateFlow<List<ScheduleUiHeader>> = _headerItems
+    var currentTrack = mutableStateOf<Int>(0)
     var isLoading = false
 
     init {
-        _items.value = createDummyListItems()
+        brewData()
         fetchFirstDate()
     }
 
@@ -26,7 +31,37 @@ class TimetableViewModel : ViewModel() {
         temp.removeAt(1)
         temp.addAll(1, createDummyDate())
         delay(1000)
+        currentTrack.value = 0
         _items.value = temp
+    }
+
+    private fun brewData() {
+        val days = getNextSevenDays().mapIndexed { index, s ->
+            ScheduleUiHeader(
+                day = s.split(" ").first().toInt(),
+                name = if (index == 0) "Today" else s.split(" ")[1],
+                holder = s.split(" ")[2],
+                id = index
+            )
+        }
+        _headerItems.value = days
+        val listItems = mutableListOf<ListItem>()
+        days.forEach {
+            listItems.add(ListItem.DateItem(date = "${it.name} ${it.day}", id = it.id))
+            listItems.add(ListItem.LoadingItem)
+        }
+        _items.value = listItems
+    }
+
+    private fun getNextSevenDays(): List<String> {
+        val dateFormat = SimpleDateFormat("dd EEE yyyy-MM-dd", Locale.ENGLISH)
+        val calendar = Calendar.getInstance()
+        val dates = mutableListOf<String>()
+        for (i in 1..7) {
+            dates.add(dateFormat.format(calendar.time))
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return dates
     }
 
     fun fetchBetweenTwoVisibleItems(start: Int, end: Int) = viewModelScope.launch {
@@ -40,11 +75,12 @@ class TimetableViewModel : ViewModel() {
                 if (i != 0) {
                     val isActuallyDate = currentItems[i - 1] is ListItem.DateItem
                     if (isActuallyDate) {
+                        currentTrack.value = (currentItems[i - 1] as ListItem.DateItem).id
                         isLoading = true
                         val temp = currentItems.toMutableList()
                         temp.removeAt(i)
-                        temp.add(i, ListItem.NoData)
-//                        temp.addAll(i, createDummyDate())
+//                        temp.add(i, ListItem.NoData)
+                        temp.addAll(i, createDummyDate())
                         delay(1000)
                         _items.value = temp
                         isLoading = false
@@ -52,46 +88,6 @@ class TimetableViewModel : ViewModel() {
                 }
             }
         }
-    }
-
-    fun checkDateItemOrNot(index: Int) {
-        val isDateItem = _items.value[index] is ListItem.DateItem
-        if (isDateItem) {
-            fetchForDate(_items.value[index])
-        }
-    }
-
-    fun fetchForDate(item: ListItem) = viewModelScope.launch {
-        if (isLoading) {
-            return@launch
-        }
-        val index = _items.value.indexOf(item)
-        val hasReachedLimit = index >= _items.value.size - 1
-        if (hasReachedLimit) {
-            return@launch
-        }
-        val hasAlreadyFetched = _items.value[index + 1] != ListItem.LoadingItem
-        if (!hasAlreadyFetched) {
-            isLoading = true
-            val temp = _items.value.toMutableList()
-            temp.removeAt(index + 1)
-            temp.add(index + 1, ListItem.NoData)
-//            temp.addAll(index + 1, createDummyDate())
-            delay(1000)
-            _items.value = temp
-            isLoading = false
-        }
-    }
-
-    private fun checkDownwardShouldFetch(index: Int, input: List<ListItem>): Pair<Boolean, Int> {
-        for (i in index downTo 0) {
-            val ok = input[i] is ListItem.DateItem && input[index + 1] == ListItem.LoadingItem
-            if (ok) {
-                Log.d("TimetableVM", "checkDownwardShouldFetch: $i")
-            }
-            return ok to i
-        }
-        return false to 0
     }
 
     private fun createDummyDate() = listOf<ListItem.ListItem>(
