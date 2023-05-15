@@ -25,21 +25,21 @@ fun TimetableScreen() {
     val listState = rememberLazyListState()
     Scaffold() { paddingValues ->
         if (listState.isScrollInProgress) {
-            val index = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
-            viewModel.checkDateItemOrNot(index)
-            Log.d("TimetableScreen", "Scrolling: $index")
+            val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            Log.d("TimetableScreen", "First Visible: $firstVisible and Last Visible: $lastVisible")
+            viewModel.fetchBetweenTwoVisibleItems(firstVisible, lastVisible + 1)
+//            viewModel.checkDateItemOrNot(firstVisible)
         }
         LazyColumn(
             modifier = Modifier.padding(paddingValues),
             state = listState
         ) {
             for (index in state.indices) {
-                val item = state[index]
-
-                when (item) {
+                when (val item = state[index]) {
                     is ListItem.DateItem -> stickyHeader {
                         Text(
-                            text = item.date.toString(),
+                            text = item.date,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color.LightGray)
@@ -53,6 +53,11 @@ fun TimetableScreen() {
                             modifier = Modifier.height(1000.dp)
                         ) {
                             CircularProgressIndicator()
+                        }
+                    }
+                    ListItem.NoData -> item {
+                        Card {
+                            Text(text = "No Data")
                         }
                     }
                 }

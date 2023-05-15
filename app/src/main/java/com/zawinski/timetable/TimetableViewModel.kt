@@ -18,13 +18,45 @@ class TimetableViewModel : ViewModel() {
 
     init {
         _items.value = createDummyListItems()
+        fetchFirstDate()
+    }
+
+    private fun fetchFirstDate() = viewModelScope.launch {
+        val temp = _items.value.toMutableList()
+        temp.removeAt(1)
+        temp.addAll(1, createDummyDate())
+        delay(1000)
+        _items.value = temp
+    }
+
+    fun fetchBetweenTwoVisibleItems(start: Int, end: Int) = viewModelScope.launch {
+        if (isLoading) {
+            return@launch
+        }
+        val currentItems = _items.value
+        for (i in start until end) {
+            val listItem = currentItems[i]
+            if (listItem is ListItem.LoadingItem) {
+                if (i != 0) {
+                    val isActuallyDate = currentItems[i - 1] is ListItem.DateItem
+                    if (isActuallyDate) {
+                        isLoading = true
+                        val temp = currentItems.toMutableList()
+                        temp.removeAt(i)
+                        temp.add(i, ListItem.NoData)
+//                        temp.addAll(i, createDummyDate())
+                        delay(1000)
+                        _items.value = temp
+                        isLoading = false
+                    }
+                }
+            }
+        }
     }
 
     fun checkDateItemOrNot(index: Int) {
-        Log.d("TimetableViewModel", "Index: $index")
         val isDateItem = _items.value[index] is ListItem.DateItem
         if (isDateItem) {
-            Log.d("TimetableViewModel", "checkDateItemOrNot: $index")
             fetchForDate(_items.value[index])
         }
     }
@@ -43,7 +75,8 @@ class TimetableViewModel : ViewModel() {
             isLoading = true
             val temp = _items.value.toMutableList()
             temp.removeAt(index + 1)
-            temp.addAll(index + 1, createDummyDate())
+            temp.add(index + 1, ListItem.NoData)
+//            temp.addAll(index + 1, createDummyDate())
             delay(1000)
             _items.value = temp
             isLoading = false
