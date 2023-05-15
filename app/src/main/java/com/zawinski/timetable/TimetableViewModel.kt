@@ -35,6 +35,9 @@ class TimetableViewModel : ViewModel() {
         _items.value = temp
     }
 
+    fun fastScrollToId(id: Int) = viewModelScope.launch {
+    }
+
     private fun brewData() {
         val days = getNextSevenDays().mapIndexed { index, s ->
             ScheduleUiHeader(
@@ -68,17 +71,20 @@ class TimetableViewModel : ViewModel() {
         if (isLoading) {
             return@launch
         }
+        val dateItemBetween = getDateItemBetween(start, end)
+        currentTrack.value = dateItemBetween
         val currentItems = _items.value
         for (i in start until end) {
             val listItem = currentItems[i]
             if (listItem is ListItem.LoadingItem) {
                 if (i != 0) {
-                    val isActuallyDate = currentItems[i - 1] is ListItem.DateItem
+                    val current = currentItems[i - 1]
+                    val isActuallyDate = current is ListItem.DateItem
                     if (isActuallyDate) {
-                        currentTrack.value = (currentItems[i - 1] as ListItem.DateItem).id
                         isLoading = true
                         val temp = currentItems.toMutableList()
                         temp.removeAt(i)
+                        currentTrack.value = (current as ListItem.DateItem).id
 //                        temp.add(i, ListItem.NoData)
                         temp.addAll(i, createDummyDate())
                         delay(1000)
@@ -88,6 +94,16 @@ class TimetableViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun getDateItemBetween(start: Int, end: Int): Int {
+        for (i in start until end) {
+            val listItem = _items.value[i]
+            if (listItem is ListItem.DateItem) {
+                return listItem.id
+            }
+        }
+        return 0
     }
 
     private fun createDummyDate() = listOf<ListItem.ListItem>(

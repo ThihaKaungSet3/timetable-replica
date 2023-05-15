@@ -3,6 +3,7 @@ package com.zawinski.timetable
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,7 +37,13 @@ fun TimetableScreen() {
             viewModel.fetchBetweenTwoVisibleItems(firstVisible, lastVisible + 1)
         }
         Column {
-            DateHeader(selectedId = viewModel.currentTrack.value, i = headerItems)
+            DateHeader(
+                selectedId = viewModel.currentTrack.value,
+                i = headerItems,
+                onClick = {
+                    viewModel.currentTrack.value = it
+                }
+            )
             LazyColumn(
                 modifier = Modifier.padding(paddingValues),
                 state = listState
@@ -74,11 +81,18 @@ fun TimetableScreen() {
 }
 
 @Composable
-private fun DateHeader(selectedId: Int, i: List<ScheduleUiHeader>) {
+private fun DateHeader(
+    selectedId: Int,
+    i: List<ScheduleUiHeader>,
+    onClick: (Int) -> Unit
+) {
     LazyRow {
         items(i) {
             Card(
-                backgroundColor = if (selectedId == it.id) Color.Blue else Color.White
+                backgroundColor = if (selectedId == it.id) Color.Blue else Color.White,
+                modifier = Modifier.clickable {
+                    onClick(it.id)
+                }
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp)
