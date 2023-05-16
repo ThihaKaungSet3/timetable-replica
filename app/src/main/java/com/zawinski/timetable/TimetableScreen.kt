@@ -26,8 +26,9 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TimetableScreen() {
-    val viewModel = TimetableViewModel()
+fun TimetableScreen(
+    viewModel: TimetableViewModel
+) {
     val items by viewModel.items.collectAsState()
     val myEvent by viewModel.myEvent.collectAsState(TimetableEvent.Idle)
     val headerItems by viewModel.headerItems.collectAsState()
@@ -45,11 +46,12 @@ fun TimetableScreen() {
     }
     Scaffold() { paddingValues ->
         if (listState.isScrollInProgress) {
-            Log.d("TimetableScreen", "Is Scroll in progress: ${viewModel.isFastScrolling}")
+            Log.d("FastScroll", "Is Fast Scroll in progress: ${viewModel.isFastScrolling}")
             val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-
-            viewModel.fetchBetweenTwoVisibleItems(firstVisible, lastVisible + 1)
+            if (!viewModel.isFastScrolling) {
+                viewModel.fetchBetweenTwoVisibleItems(firstVisible, lastVisible + 1)
+            }
         }
         Column {
             DateHeader(

@@ -42,25 +42,35 @@ class TimetableViewModel : ViewModel() {
         delay(1000)
         currentTrack.value = 0
         _items.value = temp
+        Log.d("FastScroll", "Initial fetchFirstDate: ${_items.value.size}")
     }
 
     fun fastScrollToId(id: Int) = viewModelScope.launch {
         currentTrack.value = id
         val dateById = _items.value.firstOrNull { it is ListItem.DateItem && it.id == id }
-        Log.d("TimetableViewModel", "fastScrollToId: $dateById")
+        Log.d("FastScroll", "fastScrollToId: $dateById")
         val index = _items.value.indexOf(dateById)
-        if (_items.value[index + 1] is ListItem.LoadingItem) {
+        Log.d("FastScroll", "Index: $index")
+        val itemAtIndex = _items.value[index + 1]
+        Log.d("FastScroll", "Item at Index: $itemAtIndex")
+        Log.d("FastScroll", "Before Not loading: ${_items.value[index]}")
+        if (itemAtIndex is ListItem.LoadingItem) {
             emitEvent(TimetableEvent.FastScrollTo(index))
-            Log.d("TimetableViewModel", "fastScrollToId: ${_items.value[index + 1]}")
             val temp = _items.value.toMutableList()
             temp.removeAt(index + 1)
-            temp.addAll(index + 1, createDummyDate())
-            Log.d("TimetableViewModel", "fastScrollToId: $temp")
+            val dummy = createDummyDate()
+            temp.addAll(index + 1, dummy)
             _items.value = temp
+            isFastScrolling = false
         } else {
+            Log.d("FastScroll", "Not Loading Item index: $index")
+            Log.d("FastScroll", "Not Loading Item: ${_items.value[index]}")
+            Log.d("FastScroll", "Not Loading Items Size: ${_items.value.size}")
+            isFastScrolling = true
             emitEvent(TimetableEvent.FastScrollTo(index))
+            delay(5000)
+            isFastScrolling = false
         }
-        isFastScrolling = false
     }
 
     private fun brewData() {
@@ -99,7 +109,7 @@ class TimetableViewModel : ViewModel() {
         if (isLoading || isFastScrolling) {
             return@launch
         }
-        Log.d("TimetableViewModel", "Called: Start $start and End $end and Total ${_items.value.size}")
+        Log.d("FastScroll", "Called: Start $start and End $end and Total ${_items.value.size}")
         val dateItemBetween = getDateItemBetween(start, end)
         if (start == 0) {
             val lastIndex = _items.value.indexOfFirst { (it is ListItem.DateItem) }
@@ -123,7 +133,7 @@ class TimetableViewModel : ViewModel() {
 //                        temp.add(i, ListItem.NoData)
                         temp.addAll(i, createDummyDate())
                         delay(1000)
-                        _items.value = temp
+                        _items.value = temp.toList()
                         isLoading = false
                     }
                 }
