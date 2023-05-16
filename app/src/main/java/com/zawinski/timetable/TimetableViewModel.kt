@@ -1,5 +1,6 @@
 package com.zawinski.timetable
 
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,8 +8,7 @@ import com.zawinski.timetable.model.ItemData
 import com.zawinski.timetable.model.ListItem
 import com.zawinski.timetable.model.ScheduleUiHeader
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -20,10 +20,19 @@ class TimetableViewModel : ViewModel() {
     val headerItems: StateFlow<List<ScheduleUiHeader>> = _headerItems
     var currentTrack = mutableStateOf<Int>(0)
     var isLoading = false
+    var isFastScrolling = false
+    private val _myEvent = MutableStateFlow<TimetableEvent>(TimetableEvent.Idle)
+    val myEvent: StateFlow<TimetableEvent> = _myEvent
 
     init {
         brewData()
         fetchFirstDate()
+    }
+
+    fun emitEvent(event: TimetableEvent) {
+        viewModelScope.launch {
+            _myEvent.tryEmit(event)
+        }
     }
 
     private fun fetchFirstDate() = viewModelScope.launch {
@@ -36,6 +45,22 @@ class TimetableViewModel : ViewModel() {
     }
 
     fun fastScrollToId(id: Int) = viewModelScope.launch {
+        currentTrack.value = id
+        val dateById = _items.value.firstOrNull { it is ListItem.DateItem && it.id == id }
+        Log.d("TimetableViewModel", "fastScrollToId: $dateById")
+        val index = _items.value.indexOf(dateById)
+        if (_items.value[index + 1] is ListItem.LoadingItem) {
+            emitEvent(TimetableEvent.FastScrollTo(index))
+            Log.d("TimetableViewModel", "fastScrollToId: ${_items.value[index + 1]}")
+            val temp = _items.value.toMutableList()
+            temp.removeAt(index + 1)
+            temp.addAll(index + 1, createDummyDate())
+            Log.d("TimetableViewModel", "fastScrollToId: $temp")
+            _items.value = temp
+        } else {
+            emitEvent(TimetableEvent.FastScrollTo(index))
+        }
+        isFastScrolling = false
     }
 
     private fun brewData() {
@@ -67,12 +92,22 @@ class TimetableViewModel : ViewModel() {
         return dates
     }
 
+    fun takeLastDateHeader(end: Int) {
+    }
+
     fun fetchBetweenTwoVisibleItems(start: Int, end: Int) = viewModelScope.launch {
-        if (isLoading) {
+        if (isLoading || isFastScrolling) {
             return@launch
         }
+        Log.d("TimetableViewModel", "Called: Start $start and End $end and Total ${_items.value.size}")
         val dateItemBetween = getDateItemBetween(start, end)
-        currentTrack.value = dateItemBetween
+        if (start == 0) {
+            val lastIndex = _items.value.indexOfFirst { (it is ListItem.DateItem) }
+            currentTrack.value = (_items.value[lastIndex] as ListItem.DateItem).id
+        } else {
+            currentTrack.value = dateItemBetween
+        }
+
         val currentItems = _items.value
         for (i in start until end) {
             val listItem = currentItems[i]
@@ -84,7 +119,7 @@ class TimetableViewModel : ViewModel() {
                         isLoading = true
                         val temp = currentItems.toMutableList()
                         temp.removeAt(i)
-                        currentTrack.value = (current as ListItem.DateItem).id
+//                        currentTrack.value = (current as ListItem.DateItem).id
 //                        temp.add(i, ListItem.NoData)
                         temp.addAll(i, createDummyDate())
                         delay(1000)
@@ -97,7 +132,7 @@ class TimetableViewModel : ViewModel() {
     }
 
     private fun getDateItemBetween(start: Int, end: Int): Int {
-        for (i in start until end) {
+        for (i in end - 1 downTo start) {
             val listItem = _items.value[i]
             if (listItem is ListItem.DateItem) {
                 return listItem.id
@@ -111,6 +146,12 @@ class TimetableViewModel : ViewModel() {
         ListItem.ListItem(ItemData("Item ${(0..1000).random()}", "Item Body")),
         ListItem.ListItem(ItemData("Item ${(0..1000).random()}", "Item Body")),
         ListItem.ListItem(ItemData("Item ${(0..1000).random()}", "Item Body")),
+        ListItem.ListItem(ItemData("Item ${(0..1000).random()}", "Item Body")),
         ListItem.ListItem(ItemData("Item ${(0..1000).random()}", "Item Body"))
     )
+}
+
+sealed class TimetableEvent {
+    object Idle : TimetableEvent()
+    data class FastScrollTo(val index: Int) : TimetableEvent()
 }

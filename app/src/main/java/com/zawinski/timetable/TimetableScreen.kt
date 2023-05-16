@@ -14,6 +14,7 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -21,19 +22,33 @@ import androidx.compose.ui.unit.dp
 import com.zawinski.timetable.model.ItemData
 import com.zawinski.timetable.model.ListItem
 import com.zawinski.timetable.model.ScheduleUiHeader
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TimetableScreen() {
-    val viewModel: TimetableViewModel = TimetableViewModel()
+    val viewModel = TimetableViewModel()
     val items by viewModel.items.collectAsState()
+    val myEvent by viewModel.myEvent.collectAsState(TimetableEvent.Idle)
     val headerItems by viewModel.headerItems.collectAsState()
+    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    when (val event = myEvent) {
+        is TimetableEvent.FastScrollTo -> {
+            LaunchedEffect(event) {
+                scope.launch {
+                    listState.animateScrollToItem(event.index)
+                }
+            }
+        }
+        TimetableEvent.Idle -> Unit
+    }
     Scaffold() { paddingValues ->
         if (listState.isScrollInProgress) {
+            Log.d("TimetableScreen", "Is Scroll in progress: ${viewModel.isFastScrolling}")
             val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            Log.d("TimetableScreen", "First Visible: $firstVisible and Last Visible: $lastVisible")
+
             viewModel.fetchBetweenTwoVisibleItems(firstVisible, lastVisible + 1)
         }
         Column {
@@ -41,7 +56,8 @@ fun TimetableScreen() {
                 selectedId = viewModel.currentTrack.value,
                 i = headerItems,
                 onClick = {
-                    viewModel.currentTrack.value = it
+                    viewModel.isFastScrolling = true
+                    viewModel.fastScrollToId(it)
                 }
             )
             LazyColumn(
@@ -106,8 +122,12 @@ private fun DateHeader(
 
 @Composable
 private fun ListDataItem(data: ItemData) {
-    Card {
-        Column() {
+    Card(
+        modifier = Modifier.height(156.dp).fillMaxWidth()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(text = data.title)
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = data.body)
